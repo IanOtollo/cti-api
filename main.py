@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from typing import Optional, List
 from datetime import datetime
 import uvicorn
@@ -141,19 +142,333 @@ THREAT_REPORTS = [
     }
 ]
 
-@app.get("/")
+@app.get("/", response_class=HTMLResponse)
 async def root():
-    """Root endpoint"""
-    return {
-        "message": "CTI API is running",
-        "version": "1.0.0",
-        "endpoints": {
-            "sources": "/sources",
-            "indicators": "/indicators",
-            "threats": "/threats",
-            "health": "/health"
-        }
-    }
+    """Root endpoint - Interactive Web UI"""
+    html_content = """
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>CTI API - Cyber Threat Intelligence</title>
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+            body {
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                min-height: 100vh;
+                padding: 20px;
+            }
+            .container {
+                max-width: 1200px;
+                margin: 0 auto;
+                background: white;
+                border-radius: 20px;
+                padding: 40px;
+                box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            }
+            h1 {
+                color: #667eea;
+                margin-bottom: 10px;
+                font-size: 2.5em;
+                text-align: center;
+            }
+            .subtitle {
+                text-align: center;
+                color: #666;
+                margin-bottom: 30px;
+                font-size: 1.1em;
+            }
+            .api-key-section {
+                background: #f8f9fa;
+                padding: 25px;
+                border-radius: 10px;
+                margin-bottom: 30px;
+                border-left: 4px solid #667eea;
+            }
+            .input-group {
+                display: flex;
+                gap: 10px;
+                margin-bottom: 10px;
+            }
+            input[type="text"] {
+                flex: 1;
+                padding: 12px 20px;
+                border: 2px solid #ddd;
+                border-radius: 8px;
+                font-size: 16px;
+                transition: border-color 0.3s;
+            }
+            input[type="text"]:focus {
+                outline: none;
+                border-color: #667eea;
+            }
+            .btn {
+                padding: 12px 30px;
+                border: none;
+                border-radius: 8px;
+                font-size: 16px;
+                cursor: pointer;
+                transition: all 0.3s;
+                font-weight: 600;
+            }
+            .btn-primary {
+                background: #667eea;
+                color: white;
+            }
+            .btn-primary:hover {
+                background: #5568d3;
+                transform: translateY(-2px);
+                box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+            }
+            .btn-secondary {
+                background: #6c757d;
+                color: white;
+            }
+            .btn-secondary:hover {
+                background: #5a6268;
+            }
+            .endpoint-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+                gap: 20px;
+                margin-bottom: 30px;
+            }
+            .endpoint-card {
+                background: #f8f9fa;
+                padding: 20px;
+                border-radius: 10px;
+                border: 2px solid #e9ecef;
+                transition: all 0.3s;
+            }
+            .endpoint-card:hover {
+                border-color: #667eea;
+                transform: translateY(-5px);
+                box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            }
+            .endpoint-card h3 {
+                color: #667eea;
+                margin-bottom: 10px;
+                font-size: 1.2em;
+            }
+            .endpoint-card p {
+                color: #666;
+                margin-bottom: 15px;
+                font-size: 0.9em;
+            }
+            .endpoint-card .btn {
+                width: 100%;
+            }
+            .results-section {
+                background: #1e1e1e;
+                color: #d4d4d4;
+                padding: 20px;
+                border-radius: 10px;
+                margin-top: 20px;
+                display: none;
+            }
+            .results-section.show {
+                display: block;
+            }
+            .results-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 15px;
+                padding-bottom: 10px;
+                border-bottom: 2px solid #667eea;
+            }
+            .results-header h3 {
+                color: #667eea;
+            }
+            pre {
+                background: #2d2d2d;
+                padding: 15px;
+                border-radius: 5px;
+                overflow-x: auto;
+                white-space: pre-wrap;
+                word-wrap: break-word;
+            }
+            .status {
+                display: inline-block;
+                padding: 5px 15px;
+                border-radius: 20px;
+                font-size: 0.9em;
+                font-weight: 600;
+            }
+            .status-success {
+                background: #28a745;
+                color: white;
+            }
+            .status-error {
+                background: #dc3545;
+                color: white;
+            }
+            .hint {
+                color: #6c757d;
+                font-size: 0.9em;
+                margin-top: 5px;
+            }
+            .loading {
+                display: none;
+                text-align: center;
+                padding: 20px;
+                color: #667eea;
+                font-weight: 600;
+            }
+            .loading.show {
+                display: block;
+            }
+            .docs-link {
+                text-align: center;
+                margin-top: 20px;
+                padding-top: 20px;
+                border-top: 2px solid #e9ecef;
+            }
+            .docs-link a {
+                color: #667eea;
+                text-decoration: none;
+                font-weight: 600;
+                font-size: 1.1em;
+            }
+            .docs-link a:hover {
+                text-decoration: underline;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>Cyber Threat Intelligence API</h1>
+            <p class="subtitle">Access real-time threat intelligence data</p>
+            
+            <div class="api-key-section">
+                <h3>API Authentication</h3>
+                <div class="input-group">
+                    <input type="text" id="apiKey" placeholder="Enter your API key here..." value="demo-key-CHANGE_ME">
+                    <button class="btn btn-secondary" onclick="clearResults()">Clear</button>
+                </div>
+                <p class="hint">Default key: <strong>demo-key-CHANGE_ME</strong> or <strong>test-key-123</strong></p>
+            </div>
+
+            <h2 style="margin-bottom: 20px;">Available Endpoints</h2>
+            
+            <div class="endpoint-grid">
+                <div class="endpoint-card">
+                    <h3>Threat Sources</h3>
+                    <p>Get all threat intelligence sources (CISA, MITRE, AlienVault, etc.)</p>
+                    <button class="btn btn-primary" onclick="fetchEndpoint('/sources', 'sources')">Get Sources</button>
+                </div>
+
+                <div class="endpoint-card">
+                    <h3>Threat Indicators</h3>
+                    <p>Get indicators of compromise (IPs, domains, hashes)</p>
+                    <button class="btn btn-primary" onclick="fetchEndpoint('/indicators', 'indicators')">Get All Indicators</button>
+                </div>
+
+                <div class="endpoint-card">
+                    <h3>IP Addresses Only</h3>
+                    <p>Filter indicators to show only malicious IP addresses</p>
+                    <button class="btn btn-primary" onclick="fetchEndpoint('/indicators?type=ip', 'ip-indicators')">Get IPs</button>
+                </div>
+
+                <div class="endpoint-card">
+                    <h3>Domains Only</h3>
+                    <p>Filter indicators to show only malicious domains</p>
+                    <button class="btn btn-primary" onclick="fetchEndpoint('/indicators?type=domain', 'domain-indicators')">Get Domains</button>
+                </div>
+
+                <div class="endpoint-card">
+                    <h3>Threat Reports</h3>
+                    <p>Get detailed threat reports and vulnerabilities</p>
+                    <button class="btn btn-primary" onclick="fetchEndpoint('/threats', 'threats')">Get Threats</button>
+                </div>
+
+                <div class="endpoint-card">
+                    <h3>Critical Threats</h3>
+                    <p>Filter threats to show only critical severity</p>
+                    <button class="btn btn-primary" onclick="fetchEndpoint('/threats?severity=critical', 'critical-threats')">Get Critical</button>
+                </div>
+            </div>
+
+            <div class="loading" id="loading">Loading...</div>
+
+            <div class="results-section" id="results">
+                <div class="results-header">
+                    <h3>Results</h3>
+                    <span class="status" id="status"></span>
+                </div>
+                <pre id="resultsContent"></pre>
+            </div>
+
+            <div class="docs-link">
+                <p>Need more details? Check out the <a href="/docs" target="_blank">Interactive API Documentation</a></p>
+            </div>
+        </div>
+
+        <script>
+            async function fetchEndpoint(endpoint, name) {
+                const apiKey = document.getElementById('apiKey').value.trim();
+                const resultsDiv = document.getElementById('results');
+                const resultsContent = document.getElementById('resultsContent');
+                const statusSpan = document.getElementById('status');
+                const loadingDiv = document.getElementById('loading');
+
+                if (!apiKey) {
+                    alert('Please enter your API key!');
+                    return;
+                }
+
+                // Show loading
+                loadingDiv.classList.add('show');
+                resultsDiv.classList.remove('show');
+
+                try {
+                    const response = await fetch(endpoint, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${apiKey}`,
+                            'Accept': 'application/json'
+                        }
+                    });
+
+                    const data = await response.json();
+
+                    // Hide loading
+                    loadingDiv.classList.remove('show');
+                    resultsDiv.classList.add('show');
+
+                    if (response.ok) {
+                        statusSpan.textContent = `${response.status} Success`;
+                        statusSpan.className = 'status status-success';
+                        resultsContent.textContent = JSON.stringify(data, null, 2);
+                    } else {
+                        statusSpan.textContent = `${response.status} Error`;
+                        statusSpan.className = 'status status-error';
+                        resultsContent.textContent = JSON.stringify(data, null, 2);
+                    }
+                } catch (error) {
+                    loadingDiv.classList.remove('show');
+                    resultsDiv.classList.add('show');
+                    statusSpan.textContent = 'Network Error';
+                    statusSpan.className = 'status status-error';
+                    resultsContent.textContent = `Error: ${error.message}`;
+                }
+            }
+
+            function clearResults() {
+                document.getElementById('results').classList.remove('show');
+                document.getElementById('apiKey').value = '';
+            }
+        </script>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html_content)
 
 @app.get("/health")
 async def health_check():
