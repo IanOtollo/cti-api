@@ -174,67 +174,67 @@ async def root():
         <title>CTI API - Real-Time Threat Intelligence</title>
         <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
-            body { font-family: Arial, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; }
+            body { font-family: Arial, sans-serif; background: #f5f5f5; min-height: 100vh; padding: 20px; }
             .container { max-width: 1200px; margin: 0 auto; }
-            .header { background: white; padding: 30px; border-radius: 15px; margin-bottom: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
-            .header h1 { color: #667eea; margin-bottom: 10px; }
-            .badge { display: inline-block; background: #4ade80; color: white; padding: 5px 15px; border-radius: 20px; font-size: 14px; font-weight: bold; margin-top: 10px; }
-            .card { background: white; padding: 30px; border-radius: 15px; margin-bottom: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+            .header { background: white; padding: 30px; border-radius: 5px; margin-bottom: 20px; border: 1px solid #ddd; }
+            .header h1 { color: #333; margin-bottom: 10px; font-size: 24px; }
+            .header p { color: #666; font-size: 14px; }
+            .badge { display: inline-block; background: #2c3e50; color: white; padding: 4px 12px; border-radius: 3px; font-size: 12px; margin-top: 10px; margin-right: 5px; }
+            .card { background: white; padding: 30px; border-radius: 5px; margin-bottom: 20px; border: 1px solid #ddd; }
             .input-group { margin-bottom: 20px; }
-            .input-group input { width: 100%; padding: 15px; border: 2px solid #e5e7eb; border-radius: 10px; font-size: 16px; }
-            .button-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-top: 20px; }
-            .btn { padding: 15px 25px; border: none; border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer; transition: all 0.3s; }
-            .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
-            .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4); }
-            .results { background: #1f2937; color: #e5e7eb; padding: 20px; border-radius: 10px; min-height: 200px; max-height: 500px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 14px; white-space: pre-wrap; }
-            .status { padding: 10px; border-radius: 5px; margin-bottom: 10px; }
-            .status.success { background: #d1fae5; color: #065f46; }
-            .status.error { background: #fee2e2; color: #991b1b; }
-            .status.loading { background: #dbeafe; color: #1e40af; }
-            .hint { color: #666; font-size: 14px; margin-top: 5px; }
-            .source-badge { display: inline-block; padding: 3px 10px; margin: 2px; border-radius: 5px; font-size: 12px; font-weight: bold; }
-            .source-abuse { background: #fbbf24; color: #78350f; }
-            .source-cisa { background: #3b82f6; color: white; }
-            .source-otx { background: #8b5cf6; color: white; }
+            .input-group label { display: block; margin-bottom: 5px; color: #333; font-weight: bold; }
+            .input-group input { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 3px; font-size: 14px; }
+            .hint { color: #666; font-size: 13px; margin-top: 5px; }
+            .button-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-top: 20px; }
+            .btn { padding: 12px 20px; border: none; border-radius: 3px; font-size: 14px; cursor: pointer; transition: background 0.2s; }
+            .btn-primary { background: #2c3e50; color: white; }
+            .btn-primary:hover { background: #34495e; }
+            .results { background: #f8f9fa; color: #333; padding: 20px; border-radius: 3px; border: 1px solid #ddd; min-height: 200px; max-height: 500px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 13px; white-space: pre-wrap; }
+            .status { padding: 10px; border-radius: 3px; margin-bottom: 10px; border: 1px solid; }
+            .status.success { background: #d4edda; color: #155724; border-color: #c3e6cb; }
+            .status.error { background: #f8d7da; color: #721c24; border-color: #f5c6cb; }
+            .status.loading { background: #d1ecf1; color: #0c5460; border-color: #bee5eb; }
+            .source-badge { display: inline-block; padding: 4px 10px; margin: 3px; border-radius: 3px; font-size: 12px; border: 1px solid #ddd; background: white; }
         </style>
     </head>
     <body>
         <div class="container">
             <div class="header">
-                <h1>🛡️ CTI API - Real-Time Threat Intelligence</h1>
-                <p>Live threat data from Abuse.ch, CISA, and AlienVault OTX</p>
-                <span class="badge">✅ REAL-TIME DATA</span>
-                <span class="badge">🔄 AUTO-REFRESH EVERY 5 MIN</span>
+                <h1>Cyber Threat Intelligence API</h1>
+                <p>Real-time threat intelligence from Abuse.ch, CISA, and AlienVault OTX</p>
+                <span class="badge">REAL-TIME DATA</span>
+                <span class="badge">AUTO-REFRESH: 5 MIN</span>
             </div>
             
             <div class="card">
-                <h2 style="color: #667eea; margin-bottom: 20px;">🔑 API Authentication</h2>
+                <h2 style="color: #333; margin-bottom: 20px; font-size: 18px;">API Authentication</h2>
                 <div class="input-group">
-                    <input type="text" id="apiKey" placeholder="Enter your API key..." value="demo-key-CHANGE_ME">
-                    <p class="hint">💡 Default: <strong>demo-key-CHANGE_ME</strong> or <strong>test-key-123</strong></p>
+                    <label>API Key</label>
+                    <input type="text" id="apiKey" placeholder="Enter your API key" value="demo-key-CHANGE_ME">
+                    <p class="hint">Default keys: <strong>demo-key-CHANGE_ME</strong> or <strong>test-key-123</strong></p>
                 </div>
                 
-                <h3 style="margin: 20px 0 10px 0;">Quick Actions:</h3>
+                <h3 style="margin: 20px 0 10px 0; font-size: 16px; color: #333;">Quick Actions</h3>
                 <div class="button-grid">
-                    <button class="btn btn-primary" onclick="fetchData('/sources')">📋 Threat Sources</button>
-                    <button class="btn btn-primary" onclick="fetchData('/live/urlhaus')">🌐 Malicious URLs</button>
-                    <button class="btn btn-primary" onclick="fetchData('/live/threatfox')">🎯 Recent IOCs</button>
-                    <button class="btn btn-primary" onclick="fetchData('/live/cisa-kev')">⚠️ CISA Vulnerabilities</button>
-                    <button class="btn btn-primary" onclick="fetchData('/live/all')">🔥 All Live Data</button>
-                    <button class="btn btn-primary" onclick="window.location.href='/docs'">📚 API Docs</button>
+                    <button class="btn btn-primary" onclick="fetchData('/sources')">Threat Sources</button>
+                    <button class="btn btn-primary" onclick="fetchData('/live/urlhaus')">Malicious URLs</button>
+                    <button class="btn btn-primary" onclick="fetchData('/live/threatfox')">Recent IOCs</button>
+                    <button class="btn btn-primary" onclick="fetchData('/live/cisa-kev')">CISA Vulnerabilities</button>
+                    <button class="btn btn-primary" onclick="fetchData('/live/all')">All Live Data</button>
+                    <button class="btn btn-primary" onclick="window.location.href='/docs'">API Documentation</button>
                 </div>
                 
                 <div style="margin-top: 20px;">
-                    <h3 style="margin-bottom: 10px;">Data Sources:</h3>
-                    <span class="source-badge source-abuse">Abuse.ch URLhaus</span>
-                    <span class="source-badge source-abuse">Abuse.ch ThreatFox</span>
-                    <span class="source-badge source-cisa">CISA KEV</span>
-                    <span class="source-badge source-otx">AlienVault OTX</span>
+                    <h3 style="margin-bottom: 10px; font-size: 16px; color: #333;">Data Sources</h3>
+                    <span class="source-badge">Abuse.ch URLhaus</span>
+                    <span class="source-badge">Abuse.ch ThreatFox</span>
+                    <span class="source-badge">CISA KEV</span>
+                    <span class="source-badge">AlienVault OTX</span>
                 </div>
             </div>
             
             <div class="card">
-                <h2 style="color: #667eea; margin-bottom: 20px;">📊 Results</h2>
+                <h2 style="color: #333; margin-bottom: 20px; font-size: 18px;">Results</h2>
                 <div id="status"></div>
                 <div id="results" class="results">Click a button above to fetch real-time threat data...</div>
             </div>
@@ -247,11 +247,11 @@ async def root():
                 const resultsDiv = document.getElementById('results');
                 
                 if (!apiKey) {
-                    statusDiv.innerHTML = '<div class="status error">❌ Please enter an API key!</div>';
+                    statusDiv.innerHTML = '<div class="status error">ERROR: Please enter an API key</div>';
                     return;
                 }
                 
-                statusDiv.innerHTML = '<div class="status loading">⏳ Fetching real-time data...</div>';
+                statusDiv.innerHTML = '<div class="status loading">Loading: Fetching real-time data...</div>';
                 resultsDiv.textContent = 'Loading...';
                 
                 try {
@@ -262,14 +262,14 @@ async def root():
                     const data = await response.json();
                     
                     if (response.ok) {
-                        statusDiv.innerHTML = '<div class="status success">✅ Real-time data fetched successfully!</div>';
+                        statusDiv.innerHTML = '<div class="status success">SUCCESS: Real-time data fetched successfully</div>';
                         resultsDiv.textContent = JSON.stringify(data, null, 2);
                     } else {
-                        statusDiv.innerHTML = `<div class="status error">❌ Error: ${data.detail}</div>`;
+                        statusDiv.innerHTML = `<div class="status error">ERROR: ${data.detail}</div>`;
                         resultsDiv.textContent = JSON.stringify(data, null, 2);
                     }
                 } catch (error) {
-                    statusDiv.innerHTML = `<div class="status error">❌ Network error: ${error.message}</div>`;
+                    statusDiv.innerHTML = `<div class="status error">ERROR: ${error.message}</div>`;
                     resultsDiv.textContent = error.toString();
                 }
             }
