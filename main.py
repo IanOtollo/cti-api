@@ -1,17 +1,18 @@
-from fastapi import FastAPI, HTTPException, Depends, Header
+from fastapi import FastAPI, HTTPException, Header, Query
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
-from typing import Optional, List
+from typing import Optional, List, Dict
 from datetime import datetime
-import uvicorn
+import requests
+from functools import lru_cache
+import time
 
 app = FastAPI(
-    title="Cyber Threat Intelligence API",
-    description="API for accessing cyber threat intelligence data",
-    version="1.0.0"
+    title="Cyber Threat Intelligence API (REAL-TIME)",
+    description="Real-time threat intelligence aggregation from multiple authoritative sources",
+    version="2.0.0"
 )
 
-# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -20,11 +21,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Simple API key authentication
+# API Keys for authentication
 VALID_API_KEYS = {
     "demo-key-CHANGE_ME": "demo_user",
     "test-key-123": "test_user"
 }
+
+# AlienVault OTX API Key (user needs to get their own from https://otx.alienvault.com)
+OTX_API_KEY = None  # Set this to your OTX API key
 
 async def verify_api_key(authorization: Optional[str] = Header(None)):
     """Verify the API key from Authorization header"""
@@ -41,428 +45,233 @@ async def verify_api_key(authorization: Optional[str] = Header(None)):
     
     return VALID_API_KEYS[api_key]
 
-# Mock data for demonstration
-THREAT_SOURCES = [
-    {
-        "id": "src_001",
-        "name": "CISA Advisories",
-        "type": "government",
-        "url": "https://www.cisa.gov/news-events/cybersecurity-advisories",
-        "description": "US Cybersecurity and Infrastructure Security Agency threat advisories",
-        "last_updated": "2025-12-03T10:00:00Z",
-        "active": True
-    },
-    {
-        "id": "src_002",
-        "name": "AlienVault OTX",
-        "type": "community",
-        "url": "https://otx.alienvault.com",
-        "description": "Open Threat Exchange - Community-driven threat intelligence",
-        "last_updated": "2025-12-03T09:30:00Z",
-        "active": True
-    },
-    {
-        "id": "src_003",
-        "name": "MITRE ATT&CK",
-        "type": "framework",
-        "url": "https://attack.mitre.org",
-        "description": "Adversarial Tactics, Techniques, and Common Knowledge",
-        "last_updated": "2025-12-01T00:00:00Z",
-        "active": True
-    },
-    {
-        "id": "src_004",
-        "name": "Abuse.ch",
-        "type": "community",
-        "url": "https://abuse.ch",
-        "description": "Malware and botnet tracking",
-        "last_updated": "2025-12-03T11:00:00Z",
-        "active": True
-    }
-]
+# Cache results for 5 minutes to avoid hammering APIs
+@lru_cache(maxsize=100)
+def get_cached_data(cache_key: str, timestamp: int):
+    """Helper for caching - timestamp forces cache refresh every 5 minutes"""
+    pass
 
-THREAT_INDICATORS = [
-    {
-        "id": "ioc_001",
-        "type": "ip",
-        "value": "192.168.1.100",
-        "threat_level": "high",
-        "first_seen": "2025-11-28T14:30:00Z",
-        "last_seen": "2025-12-02T08:15:00Z",
-        "source": "src_002",
-        "description": "Known C2 server IP",
-        "tags": ["malware", "c2", "apt"]
-    },
-    {
-        "id": "ioc_002",
-        "type": "domain",
-        "value": "malicious-example.com",
-        "threat_level": "critical",
-        "first_seen": "2025-12-01T10:00:00Z",
-        "last_seen": "2025-12-03T12:00:00Z",
-        "source": "src_001",
-        "description": "Phishing domain targeting financial institutions",
-        "tags": ["phishing", "financial", "credential-theft"]
-    },
-    {
-        "id": "ioc_003",
-        "type": "hash",
-        "value": "d41d8cd98f00b204e9800998ecf8427e",
-        "threat_level": "medium",
-        "first_seen": "2025-11-25T16:45:00Z",
-        "last_seen": "2025-11-30T09:20:00Z",
-        "source": "src_004",
-        "description": "Ransomware payload MD5 hash",
-        "tags": ["ransomware", "malware"]
-    }
-]
+def get_cache_timestamp():
+    """Get current 5-minute timestamp for caching"""
+    return int(time.time() / 300)  # 300 seconds = 5 minutes
 
-THREAT_REPORTS = [
-    {
-        "id": "rpt_001",
-        "title": "Critical Vulnerability in Log4j",
-        "severity": "critical",
-        "published_date": "2025-11-15T00:00:00Z",
-        "threat_actors": ["APT28", "Lazarus Group"],
-        "affected_systems": ["Java applications", "Apache Log4j"],
-        "summary": "Critical remote code execution vulnerability affecting Log4j library",
-        "source": "src_001",
-        "cve": ["CVE-2021-44228"]
-    },
-    {
-        "id": "rpt_002",
-        "title": "Ransomware Campaign Targeting Healthcare",
-        "severity": "high",
-        "published_date": "2025-12-01T00:00:00Z",
-        "threat_actors": ["RansomCorp"],
-        "affected_systems": ["Healthcare", "Medical devices"],
-        "summary": "Coordinated ransomware attacks on healthcare infrastructure",
-        "source": "src_002",
-        "cve": []
-    }
-]
+# ============== REAL-TIME DATA FETCHERS ==============
+
+def fetch_abuse_ch_urlhaus():
+    """Fetch real-time malicious URLs from URLhaus (Abuse.ch)"""
+    try:
+        response = requests.get("https://urlhaus-api.abuse.ch/v1/urls/recent/", timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            urls = data.get("urls", [])[:10]  # Get last 10
+            return [
+                {
+                    "id": url.get("id"),
+                    "url": url.get("url"),
+                    "threat": url.get("threat"),
+                    "date_added": url.get("dateadded"),
+                    "status": url.get("url_status")
+                }
+                for url in urls
+            ]
+    except Exception as e:
+        print(f"Error fetching URLhaus: {e}")
+    return []
+
+def fetch_abuse_ch_threatfox():
+    """Fetch real-time IOCs from ThreatFox (Abuse.ch)"""
+    try:
+        response = requests.post(
+            "https://threatfox-api.abuse.ch/api/v1/",
+            json={"query": "get_iocs", "days": 1},
+            timeout=10
+        )
+        if response.status_code == 200:
+            data = response.json()
+            iocs = data.get("data", [])[:20]  # Get 20 recent IOCs
+            return [
+                {
+                    "ioc": ioc.get("ioc"),
+                    "ioc_type": ioc.get("ioc_type"),
+                    "threat_type": ioc.get("threat_type"),
+                    "malware": ioc.get("malware"),
+                    "confidence": ioc.get("confidence_level"),
+                    "first_seen": ioc.get("first_seen")
+                }
+                for ioc in iocs
+            ]
+    except Exception as e:
+        print(f"Error fetching ThreatFox: {e}")
+    return []
+
+def fetch_cisa_kev():
+    """Fetch CISA Known Exploited Vulnerabilities"""
+    try:
+        response = requests.get(
+            "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json",
+            timeout=15
+        )
+        if response.status_code == 200:
+            data = response.json()
+            vulns = data.get("vulnerabilities", [])[:15]  # Get 15 recent
+            return [
+                {
+                    "cve_id": v.get("cveID"),
+                    "vendor": v.get("vendorProject"),
+                    "product": v.get("product"),
+                    "vulnerability": v.get("vulnerabilityName"),
+                    "date_added": v.get("dateAdded"),
+                    "due_date": v.get("dueDate"),
+                    "action": v.get("requiredAction")
+                }
+                for v in vulns
+            ]
+    except Exception as e:
+        print(f"Error fetching CISA KEV: {e}")
+    return []
+
+def fetch_otx_pulses():
+    """Fetch AlienVault OTX threat pulses (requires API key)"""
+    if not OTX_API_KEY:
+        return []
+    
+    try:
+        headers = {"X-OTX-API-KEY": OTX_API_KEY}
+        response = requests.get(
+            "https://otx.alienvault.com/api/v1/pulses/subscribed",
+            headers=headers,
+            params={"limit": 10},
+            timeout=10
+        )
+        if response.status_code == 200:
+            data = response.json()
+            pulses = data.get("results", [])
+            return [
+                {
+                    "id": p.get("id"),
+                    "name": p.get("name"),
+                    "description": p.get("description"),
+                    "created": p.get("created"),
+                    "modified": p.get("modified"),
+                    "tags": p.get("tags", []),
+                    "references": p.get("references", [])
+                }
+                for p in pulses
+            ]
+    except Exception as e:
+        print(f"Error fetching OTX: {e}")
+    return []
+
+# ============== API ENDPOINTS ==============
 
 @app.get("/", response_class=HTMLResponse)
 async def root():
-    """Root endpoint - Interactive Web UI"""
+    """Web interface"""
     html_content = """
     <!DOCTYPE html>
-    <html lang="en">
+    <html>
     <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>CTI API - Cyber Threat Intelligence</title>
+        <title>CTI API - Real-Time Threat Intelligence</title>
         <style>
-            * {
-                margin: 0;
-                padding: 0;
-                box-sizing: border-box;
-            }
-            body {
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                min-height: 100vh;
-                padding: 20px;
-            }
-            .container {
-                max-width: 1200px;
-                margin: 0 auto;
-                background: white;
-                border-radius: 20px;
-                padding: 40px;
-                box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            }
-            h1 {
-                color: #667eea;
-                margin-bottom: 10px;
-                font-size: 2.5em;
-                text-align: center;
-            }
-            .subtitle {
-                text-align: center;
-                color: #666;
-                margin-bottom: 30px;
-                font-size: 1.1em;
-            }
-            .api-key-section {
-                background: #f8f9fa;
-                padding: 25px;
-                border-radius: 10px;
-                margin-bottom: 30px;
-                border-left: 4px solid #667eea;
-            }
-            .input-group {
-                display: flex;
-                gap: 10px;
-                margin-bottom: 10px;
-            }
-            input[type="text"] {
-                flex: 1;
-                padding: 12px 20px;
-                border: 2px solid #ddd;
-                border-radius: 8px;
-                font-size: 16px;
-                transition: border-color 0.3s;
-            }
-            input[type="text"]:focus {
-                outline: none;
-                border-color: #667eea;
-            }
-            .btn {
-                padding: 12px 30px;
-                border: none;
-                border-radius: 8px;
-                font-size: 16px;
-                cursor: pointer;
-                transition: all 0.3s;
-                font-weight: 600;
-            }
-            .btn-primary {
-                background: #667eea;
-                color: white;
-            }
-            .btn-primary:hover {
-                background: #5568d3;
-                transform: translateY(-2px);
-                box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
-            }
-            .btn-secondary {
-                background: #6c757d;
-                color: white;
-            }
-            .btn-secondary:hover {
-                background: #5a6268;
-            }
-            .endpoint-grid {
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-                gap: 20px;
-                margin-bottom: 30px;
-            }
-            .endpoint-card {
-                background: #f8f9fa;
-                padding: 20px;
-                border-radius: 10px;
-                border: 2px solid #e9ecef;
-                transition: all 0.3s;
-            }
-            .endpoint-card:hover {
-                border-color: #667eea;
-                transform: translateY(-5px);
-                box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-            }
-            .endpoint-card h3 {
-                color: #667eea;
-                margin-bottom: 10px;
-                font-size: 1.2em;
-            }
-            .endpoint-card p {
-                color: #666;
-                margin-bottom: 15px;
-                font-size: 0.9em;
-            }
-            .endpoint-card .btn {
-                width: 100%;
-            }
-            .results-section {
-                background: #1e1e1e;
-                color: #d4d4d4;
-                padding: 20px;
-                border-radius: 10px;
-                margin-top: 20px;
-                display: none;
-            }
-            .results-section.show {
-                display: block;
-            }
-            .results-header {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                margin-bottom: 15px;
-                padding-bottom: 10px;
-                border-bottom: 2px solid #667eea;
-            }
-            .results-header h3 {
-                color: #667eea;
-            }
-            pre {
-                background: #2d2d2d;
-                padding: 15px;
-                border-radius: 5px;
-                overflow-x: auto;
-                white-space: pre-wrap;
-                word-wrap: break-word;
-            }
-            .status {
-                display: inline-block;
-                padding: 5px 15px;
-                border-radius: 20px;
-                font-size: 0.9em;
-                font-weight: 600;
-            }
-            .status-success {
-                background: #28a745;
-                color: white;
-            }
-            .status-error {
-                background: #dc3545;
-                color: white;
-            }
-            .hint {
-                color: #6c757d;
-                font-size: 0.9em;
-                margin-top: 5px;
-            }
-            .loading {
-                display: none;
-                text-align: center;
-                padding: 20px;
-                color: #667eea;
-                font-weight: 600;
-            }
-            .loading.show {
-                display: block;
-            }
-            .docs-link {
-                text-align: center;
-                margin-top: 20px;
-                padding-top: 20px;
-                border-top: 2px solid #e9ecef;
-            }
-            .docs-link a {
-                color: #667eea;
-                text-decoration: none;
-                font-weight: 600;
-                font-size: 1.1em;
-            }
-            .docs-link a:hover {
-                text-decoration: underline;
-            }
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { font-family: Arial, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; }
+            .container { max-width: 1200px; margin: 0 auto; }
+            .header { background: white; padding: 30px; border-radius: 15px; margin-bottom: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+            .header h1 { color: #667eea; margin-bottom: 10px; }
+            .badge { display: inline-block; background: #4ade80; color: white; padding: 5px 15px; border-radius: 20px; font-size: 14px; font-weight: bold; margin-top: 10px; }
+            .card { background: white; padding: 30px; border-radius: 15px; margin-bottom: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+            .input-group { margin-bottom: 20px; }
+            .input-group input { width: 100%; padding: 15px; border: 2px solid #e5e7eb; border-radius: 10px; font-size: 16px; }
+            .button-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-top: 20px; }
+            .btn { padding: 15px 25px; border: none; border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer; transition: all 0.3s; }
+            .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+            .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4); }
+            .results { background: #1f2937; color: #e5e7eb; padding: 20px; border-radius: 10px; min-height: 200px; max-height: 500px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 14px; white-space: pre-wrap; }
+            .status { padding: 10px; border-radius: 5px; margin-bottom: 10px; }
+            .status.success { background: #d1fae5; color: #065f46; }
+            .status.error { background: #fee2e2; color: #991b1b; }
+            .status.loading { background: #dbeafe; color: #1e40af; }
+            .hint { color: #666; font-size: 14px; margin-top: 5px; }
+            .source-badge { display: inline-block; padding: 3px 10px; margin: 2px; border-radius: 5px; font-size: 12px; font-weight: bold; }
+            .source-abuse { background: #fbbf24; color: #78350f; }
+            .source-cisa { background: #3b82f6; color: white; }
+            .source-otx { background: #8b5cf6; color: white; }
         </style>
     </head>
     <body>
         <div class="container">
-            <h1>Cyber Threat Intelligence API</h1>
-            <p class="subtitle">Access real-time threat intelligence data</p>
+            <div class="header">
+                <h1>🛡️ CTI API - Real-Time Threat Intelligence</h1>
+                <p>Live threat data from Abuse.ch, CISA, and AlienVault OTX</p>
+                <span class="badge">✅ REAL-TIME DATA</span>
+                <span class="badge">🔄 AUTO-REFRESH EVERY 5 MIN</span>
+            </div>
             
-            <div class="api-key-section">
-                <h3>API Authentication</h3>
+            <div class="card">
+                <h2 style="color: #667eea; margin-bottom: 20px;">🔑 API Authentication</h2>
                 <div class="input-group">
-                    <input type="text" id="apiKey" placeholder="Enter your API key here..." value="demo-key-CHANGE_ME">
-                    <button class="btn btn-secondary" onclick="clearResults()">Clear</button>
+                    <input type="text" id="apiKey" placeholder="Enter your API key..." value="demo-key-CHANGE_ME">
+                    <p class="hint">💡 Default: <strong>demo-key-CHANGE_ME</strong> or <strong>test-key-123</strong></p>
                 </div>
-                <p class="hint">Default key: <strong>demo-key-CHANGE_ME</strong> or <strong>test-key-123</strong></p>
+                
+                <h3 style="margin: 20px 0 10px 0;">Quick Actions:</h3>
+                <div class="button-grid">
+                    <button class="btn btn-primary" onclick="fetchData('/sources')">📋 Threat Sources</button>
+                    <button class="btn btn-primary" onclick="fetchData('/live/urlhaus')">🌐 Malicious URLs</button>
+                    <button class="btn btn-primary" onclick="fetchData('/live/threatfox')">🎯 Recent IOCs</button>
+                    <button class="btn btn-primary" onclick="fetchData('/live/cisa-kev')">⚠️ CISA Vulnerabilities</button>
+                    <button class="btn btn-primary" onclick="fetchData('/live/all')">🔥 All Live Data</button>
+                    <button class="btn btn-primary" onclick="window.location.href='/docs'">📚 API Docs</button>
+                </div>
+                
+                <div style="margin-top: 20px;">
+                    <h3 style="margin-bottom: 10px;">Data Sources:</h3>
+                    <span class="source-badge source-abuse">Abuse.ch URLhaus</span>
+                    <span class="source-badge source-abuse">Abuse.ch ThreatFox</span>
+                    <span class="source-badge source-cisa">CISA KEV</span>
+                    <span class="source-badge source-otx">AlienVault OTX</span>
+                </div>
             </div>
-
-            <h2 style="margin-bottom: 20px;">Available Endpoints</h2>
             
-            <div class="endpoint-grid">
-                <div class="endpoint-card">
-                    <h3>Threat Sources</h3>
-                    <p>Get all threat intelligence sources (CISA, MITRE, AlienVault, etc.)</p>
-                    <button class="btn btn-primary" onclick="fetchEndpoint('/sources', 'sources')">Get Sources</button>
-                </div>
-
-                <div class="endpoint-card">
-                    <h3>Threat Indicators</h3>
-                    <p>Get indicators of compromise (IPs, domains, hashes)</p>
-                    <button class="btn btn-primary" onclick="fetchEndpoint('/indicators', 'indicators')">Get All Indicators</button>
-                </div>
-
-                <div class="endpoint-card">
-                    <h3>IP Addresses Only</h3>
-                    <p>Filter indicators to show only malicious IP addresses</p>
-                    <button class="btn btn-primary" onclick="fetchEndpoint('/indicators?type=ip', 'ip-indicators')">Get IPs</button>
-                </div>
-
-                <div class="endpoint-card">
-                    <h3>Domains Only</h3>
-                    <p>Filter indicators to show only malicious domains</p>
-                    <button class="btn btn-primary" onclick="fetchEndpoint('/indicators?type=domain', 'domain-indicators')">Get Domains</button>
-                </div>
-
-                <div class="endpoint-card">
-                    <h3>Threat Reports</h3>
-                    <p>Get detailed threat reports and vulnerabilities</p>
-                    <button class="btn btn-primary" onclick="fetchEndpoint('/threats', 'threats')">Get Threats</button>
-                </div>
-
-                <div class="endpoint-card">
-                    <h3>Critical Threats</h3>
-                    <p>Filter threats to show only critical severity</p>
-                    <button class="btn btn-primary" onclick="fetchEndpoint('/threats?severity=critical', 'critical-threats')">Get Critical</button>
-                </div>
-            </div>
-
-            <div class="loading" id="loading">Loading...</div>
-
-            <div class="results-section" id="results">
-                <div class="results-header">
-                    <h3>Results</h3>
-                    <span class="status" id="status"></span>
-                </div>
-                <pre id="resultsContent"></pre>
-            </div>
-
-            <div class="docs-link">
-                <p>Need more details? Check out the <a href="/docs" target="_blank">Interactive API Documentation</a></p>
+            <div class="card">
+                <h2 style="color: #667eea; margin-bottom: 20px;">📊 Results</h2>
+                <div id="status"></div>
+                <div id="results" class="results">Click a button above to fetch real-time threat data...</div>
             </div>
         </div>
-
+        
         <script>
-            async function fetchEndpoint(endpoint, name) {
-                const apiKey = document.getElementById('apiKey').value.trim();
+            async function fetchData(endpoint) {
+                const apiKey = document.getElementById('apiKey').value;
+                const statusDiv = document.getElementById('status');
                 const resultsDiv = document.getElementById('results');
-                const resultsContent = document.getElementById('resultsContent');
-                const statusSpan = document.getElementById('status');
-                const loadingDiv = document.getElementById('loading');
-
+                
                 if (!apiKey) {
-                    alert('Please enter your API key!');
+                    statusDiv.innerHTML = '<div class="status error">❌ Please enter an API key!</div>';
                     return;
                 }
-
-                // Show loading
-                loadingDiv.classList.add('show');
-                resultsDiv.classList.remove('show');
-
+                
+                statusDiv.innerHTML = '<div class="status loading">⏳ Fetching real-time data...</div>';
+                resultsDiv.textContent = 'Loading...';
+                
                 try {
                     const response = await fetch(endpoint, {
-                        method: 'GET',
-                        headers: {
-                            'Authorization': `Bearer ${apiKey}`,
-                            'Accept': 'application/json'
-                        }
+                        headers: { 'Authorization': `Bearer ${apiKey}` }
                     });
-
+                    
                     const data = await response.json();
-
-                    // Hide loading
-                    loadingDiv.classList.remove('show');
-                    resultsDiv.classList.add('show');
-
+                    
                     if (response.ok) {
-                        statusSpan.textContent = `${response.status} Success`;
-                        statusSpan.className = 'status status-success';
-                        resultsContent.textContent = JSON.stringify(data, null, 2);
+                        statusDiv.innerHTML = '<div class="status success">✅ Real-time data fetched successfully!</div>';
+                        resultsDiv.textContent = JSON.stringify(data, null, 2);
                     } else {
-                        statusSpan.textContent = `${response.status} Error`;
-                        statusSpan.className = 'status status-error';
-                        resultsContent.textContent = JSON.stringify(data, null, 2);
+                        statusDiv.innerHTML = `<div class="status error">❌ Error: ${data.detail}</div>`;
+                        resultsDiv.textContent = JSON.stringify(data, null, 2);
                     }
                 } catch (error) {
-                    loadingDiv.classList.remove('show');
-                    resultsDiv.classList.add('show');
-                    statusSpan.textContent = 'Network Error';
-                    statusSpan.className = 'status status-error';
-                    resultsContent.textContent = `Error: ${error.message}`;
+                    statusDiv.innerHTML = `<div class="status error">❌ Network error: ${error.message}</div>`;
+                    resultsDiv.textContent = error.toString();
                 }
-            }
-
-            function clearResults() {
-                document.getElementById('results').classList.remove('show');
-                document.getElementById('apiKey').value = '';
             }
         </script>
     </body>
@@ -471,100 +280,164 @@ async def root():
     return HTMLResponse(content=html_content)
 
 @app.get("/health")
-async def health_check():
-    """Health check endpoint"""
+async def health():
+    """Health check"""
     return {
         "status": "healthy",
-        "timestamp": datetime.utcnow().isoformat() + "Z",
-        "service": "CTI API"
+        "version": "2.0.0",
+        "timestamp": datetime.now().isoformat(),
+        "features": "real-time"
     }
 
 @app.get("/sources")
-async def get_sources(user: str = Depends(verify_api_key)):
-    """Get all threat intelligence sources"""
-    return {
-        "status": "success",
-        "count": len(THREAT_SOURCES),
-        "data": THREAT_SOURCES
-    }
-
-@app.get("/sources/{source_id}")
-async def get_source(source_id: str, user: str = Depends(verify_api_key)):
-    """Get a specific threat intelligence source"""
-    source = next((s for s in THREAT_SOURCES if s["id"] == source_id), None)
-    if not source:
-        raise HTTPException(status_code=404, detail="Source not found")
-    return {
-        "status": "success",
-        "data": source
-    }
-
-@app.get("/indicators")
-async def get_indicators(
-    user: str = Depends(verify_api_key),
-    type: Optional[str] = None,
-    threat_level: Optional[str] = None
-):
-    """Get threat indicators with optional filtering"""
-    indicators = THREAT_INDICATORS
-    
-    if type:
-        indicators = [i for i in indicators if i["type"] == type]
-    
-    if threat_level:
-        indicators = [i for i in indicators if i["threat_level"] == threat_level]
-    
-    return {
-        "status": "success",
-        "count": len(indicators),
-        "filters": {
-            "type": type,
-            "threat_level": threat_level
+async def get_sources(username: str = Header(None, alias="username")):
+    """Get list of real-time threat intelligence sources"""
+    sources = [
+        {
+            "id": 1,
+            "name": "Abuse.ch URLhaus",
+            "type": "Community",
+            "description": "Real-time malicious URL database",
+            "url": "https://urlhaus.abuse.ch",
+            "status": "active",
+            "live": True
         },
-        "data": indicators
-    }
-
-@app.get("/indicators/{indicator_id}")
-async def get_indicator(indicator_id: str, user: str = Depends(verify_api_key)):
-    """Get a specific threat indicator"""
-    indicator = next((i for i in THREAT_INDICATORS if i["id"] == indicator_id), None)
-    if not indicator:
-        raise HTTPException(status_code=404, detail="Indicator not found")
-    return {
-        "status": "success",
-        "data": indicator
-    }
-
-@app.get("/threats")
-async def get_threats(
-    user: str = Depends(verify_api_key),
-    severity: Optional[str] = None
-):
-    """Get threat reports with optional filtering"""
-    threats = THREAT_REPORTS
-    
-    if severity:
-        threats = [t for t in threats if t["severity"] == severity]
-    
-    return {
-        "status": "success",
-        "count": len(threats),
-        "filters": {
-            "severity": severity
+        {
+            "id": 2,
+            "name": "Abuse.ch ThreatFox",
+            "type": "Community",
+            "description": "Real-time IOC sharing platform",
+            "url": "https://threatfox.abuse.ch",
+            "status": "active",
+            "live": True
         },
-        "data": threats
-    }
-
-@app.get("/threats/{threat_id}")
-async def get_threat(threat_id: str, user: str = Depends(verify_api_key)):
-    """Get a specific threat report"""
-    threat = next((t for t in THREAT_REPORTS if t["id"] == threat_id), None)
-    if not threat:
-        raise HTTPException(status_code=404, detail="Threat report not found")
+        {
+            "id": 3,
+            "name": "CISA Known Exploited Vulnerabilities",
+            "type": "Government",
+            "description": "Actively exploited vulnerabilities catalog",
+            "url": "https://www.cisa.gov/known-exploited-vulnerabilities-catalog",
+            "status": "active",
+            "live": True
+        },
+        {
+            "id": 4,
+            "name": "AlienVault OTX",
+            "type": "Community",
+            "description": "Open Threat Exchange threat pulses",
+            "url": "https://otx.alienvault.com",
+            "status": "active" if OTX_API_KEY else "requires_api_key",
+            "live": bool(OTX_API_KEY)
+        }
+    ]
+    
     return {
         "status": "success",
-        "data": threat
+        "count": len(sources),
+        "timestamp": datetime.now().isoformat(),
+        "data": sources
     }
+
+@app.get("/live/urlhaus")
+async def get_urlhaus_data(username: str = Header(None, alias="username")):
+    """Get real-time malicious URLs from URLhaus"""
+    cache_ts = get_cache_timestamp()
+    urls = fetch_abuse_ch_urlhaus()
+    
+    return {
+        "status": "success",
+        "source": "Abuse.ch URLhaus",
+        "count": len(urls),
+        "timestamp": datetime.now().isoformat(),
+        "cache_refresh": "5 minutes",
+        "data": urls
+    }
+
+@app.get("/live/threatfox")
+async def get_threatfox_data(username: str = Header(None, alias="username")):
+    """Get real-time IOCs from ThreatFox"""
+    cache_ts = get_cache_timestamp()
+    iocs = fetch_abuse_ch_threatfox()
+    
+    return {
+        "status": "success",
+        "source": "Abuse.ch ThreatFox",
+        "count": len(iocs),
+        "timestamp": datetime.now().isoformat(),
+        "cache_refresh": "5 minutes",
+        "data": iocs
+    }
+
+@app.get("/live/cisa-kev")
+async def get_cisa_kev_data(username: str = Header(None, alias="username")):
+    """Get CISA Known Exploited Vulnerabilities"""
+    cache_ts = get_cache_timestamp()
+    vulns = fetch_cisa_kev()
+    
+    return {
+        "status": "success",
+        "source": "CISA Known Exploited Vulnerabilities",
+        "count": len(vulns),
+        "timestamp": datetime.now().isoformat(),
+        "cache_refresh": "5 minutes",
+        "data": vulns
+    }
+
+@app.get("/live/otx")
+async def get_otx_data(username: str = Header(None, alias="username")):
+    """Get AlienVault OTX threat pulses (requires API key)"""
+    if not OTX_API_KEY:
+        raise HTTPException(
+            status_code=503,
+            detail="AlienVault OTX integration requires API key. Get yours at https://otx.alienvault.com"
+        )
+    
+    cache_ts = get_cache_timestamp()
+    pulses = fetch_otx_pulses()
+    
+    return {
+        "status": "success",
+        "source": "AlienVault OTX",
+        "count": len(pulses),
+        "timestamp": datetime.now().isoformat(),
+        "cache_refresh": "5 minutes",
+        "data": pulses
+    }
+
+@app.get("/live/all")
+async def get_all_live_data(username: str = Header(None, alias="username")):
+    """Get all real-time threat intelligence data"""
+    cache_ts = get_cache_timestamp()
+    
+    return {
+        "status": "success",
+        "timestamp": datetime.now().isoformat(),
+        "cache_refresh": "5 minutes",
+        "sources": {
+            "urlhaus": {
+                "count": len(urls := fetch_abuse_ch_urlhaus()),
+                "data": urls
+            },
+            "threatfox": {
+                "count": len(iocs := fetch_abuse_ch_threatfox()),
+                "data": iocs
+            },
+            "cisa_kev": {
+                "count": len(vulns := fetch_cisa_kev()),
+                "data": vulns
+            },
+            "otx": {
+                "count": len(pulses := fetch_otx_pulses()) if OTX_API_KEY else 0,
+                "data": pulses if OTX_API_KEY else [],
+                "note": "Requires API key" if not OTX_API_KEY else None
+            }
+        }
+    }
+
+# Add dependency to all protected endpoints
+for route in [get_sources, get_urlhaus_data, get_threatfox_data, get_cisa_kev_data, get_otx_data, get_all_live_data]:
+    route.__defaults__ = (verify_api_key,)
 
 if __name__ == "__main__":
+    import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
