@@ -201,27 +201,27 @@ async def root():
     <body>
         <div class="container">
             <div class="header">
-                <h1>🛡️ CTI API - Real-Time Threat Intelligence</h1>
+                <h1>CTI API - Real-Time Threat Intelligence</h1>
                 <p>Live threat data from Abuse.ch, CISA, and AlienVault OTX</p>
-                <span class="badge">✅ REAL-TIME DATA</span>
-                <span class="badge">🔄 AUTO-REFRESH EVERY 5 MIN</span>
+                <span class="badge">REAL-TIME DATA</span>
+                <span class="badge">AUTO-REFRESH EVERY 5 MIN</span>
             </div>
             
             <div class="card">
-                <h2 style="color: #667eea; margin-bottom: 20px;">🔑 API Authentication</h2>
+                <h2 style="color: #667eea; margin-bottom: 20px;">API Authentication</h2>
                 <div class="input-group">
                     <input type="text" id="apiKey" placeholder="Enter your API key..." value="demo-key-CHANGE_ME">
-                    <p class="hint">💡 Default: <strong>demo-key-CHANGE_ME</strong> or <strong>test-key-123</strong></p>
+                    <p class="hint">Default: <strong>demo-key-CHANGE_ME</strong> or <strong>test-key-123</strong></p>
                 </div>
                 
                 <h3 style="margin: 20px 0 10px 0;">Quick Actions:</h3>
                 <div class="button-grid">
-                    <button class="btn btn-primary" onclick="fetchData('/sources')">📋 Threat Sources</button>
-                    <button class="btn btn-primary" onclick="fetchData('/live/urlhaus')">🌐 Malicious URLs</button>
-                    <button class="btn btn-primary" onclick="fetchData('/live/threatfox')">🎯 Recent IOCs</button>
-                    <button class="btn btn-primary" onclick="fetchData('/live/cisa-kev')">⚠️ CISA Vulnerabilities</button>
-                    <button class="btn btn-primary" onclick="fetchData('/live/all')">🔥 All Live Data</button>
-                    <button class="btn btn-primary" onclick="window.location.href='/docs'">📚 API Docs</button>
+                    <button class="btn btn-primary" onclick="fetchData('/sources')">Threat Sources</button>
+                    <button class="btn btn-primary" onclick="fetchData('/live/urlhaus')">Malicious URLs</button>
+                    <button class="btn btn-primary" onclick="fetchData('/live/threatfox')">Recent IOCs</button>
+                    <button class="btn btn-primary" onclick="fetchData('/live/cisa-kev')">CISA Vulnerabilities</button>
+                    <button class="btn btn-primary" onclick="fetchData('/live/all')">All Live Data</button>
+                    <button class="btn btn-primary" onclick="window.location.href='/docs'">API Docs</button>
                 </div>
                 
                 <div style="margin-top: 20px;">
@@ -234,7 +234,7 @@ async def root():
             </div>
             
             <div class="card">
-                <h2 style="color: #667eea; margin-bottom: 20px;">📊 Results</h2>
+                <h2 style="color: #667eea; margin-bottom: 20px;">Results</h2>
                 <div id="status"></div>
                 <div id="results" class="results">Click a button above to fetch real-time threat data...</div>
             </div>
@@ -247,11 +247,11 @@ async def root():
                 const resultsDiv = document.getElementById('results');
                 
                 if (!apiKey) {
-                    statusDiv.innerHTML = '<div class="status error">❌ Please enter an API key!</div>';
+                    statusDiv.innerHTML = '<div class="status error">Please enter an API key!</div>';
                     return;
                 }
                 
-                statusDiv.innerHTML = '<div class="status loading">⏳ Fetching real-time data...</div>';
+                statusDiv.innerHTML = '<div class="status loading">Fetching real-time data...</div>';
                 resultsDiv.textContent = 'Loading...';
                 
                 try {
@@ -262,14 +262,14 @@ async def root():
                     const data = await response.json();
                     
                     if (response.ok) {
-                        statusDiv.innerHTML = '<div class="status success">✅ Real-time data fetched successfully!</div>';
+                        statusDiv.innerHTML = '<div class="status success">Real-time data fetched successfully!</div>';
                         resultsDiv.textContent = JSON.stringify(data, null, 2);
                     } else {
-                        statusDiv.innerHTML = `<div class="status error">❌ Error: ${data.detail}</div>`;
+                        statusDiv.innerHTML = `<div class="status error">Error: ${data.detail}</div>`;
                         resultsDiv.textContent = JSON.stringify(data, null, 2);
                     }
                 } catch (error) {
-                    statusDiv.innerHTML = `<div class="status error">❌ Network error: ${error.message}</div>`;
+                    statusDiv.innerHTML = `<div class="status error">Network error: ${error.message}</div>`;
                     resultsDiv.textContent = error.toString();
                 }
             }
